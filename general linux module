@@ -1,0 +1,152 @@
+在一般的 Linux 系統中，內核模組 (kernel module) 的 Makefile 主要有幾種寫法，取決於你的需求和架構。這裡列出幾種常見的 Makefile 寫法方式：
+
+1. 單一模組 (Single Module)
+這是最基本的情況，當你只有一個 mydriver.c 需要編譯成內核模組 (.ko)。
+
+目錄結構
+複製
+編輯
+mydriver/
+├── Makefile
+└── mydriver.c
+Makefile
+makefile
+複製
+編輯
+obj-m += mydriver.o  # 讓 mydriver.c 變成 mydriver.ko
+
+# 指定內核目錄
+KDIR := /lib/modules/$(shell uname -r)/build
+
+# 預設目標
+all:
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
+
+# 清除編譯產物
+clean:
+	$(MAKE) -C $(KDIR) M=$(PWD) clean
+說明
+obj-m += mydriver.o：表示要編譯 mydriver.c 成 mydriver.ko。
+
+KDIR：指定內核源碼目錄（模組編譯需要）。
+
+$(MAKE) -C $(KDIR) M=$(PWD) modules：告訴 make 進入內核源碼目錄 (KDIR)，並使用 M=$(PWD) 來編譯當前目錄的內核模組。
+
+2. 多個 .c 檔案 (Multiple Source Files)
+如果你的驅動模組包含多個 .c 檔案，例如 mydriver.c 和 helper.c，你需要在 Makefile 中列出所有的 .o 檔案。
+
+目錄結構
+複製
+編輯
+mydriver/
+├── Makefile
+├── mydriver.c
+└── helper.c
+Makefile
+makefile
+複製
+編輯
+obj-m += mydriver.o  # 主要的 .o 檔案
+mydriver-objs := mydriver.o helper.o  # 內部的 .o 檔案
+
+KDIR := /lib/modules/$(shell uname -r)/build
+PWD  := $(shell pwd)
+
+all:
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
+
+clean:
+	$(MAKE) -C $(KDIR) M=$(PWD) clean
+說明
+obj-m += mydriver.o：表示 mydriver.ko 是主要的模組檔案。
+
+mydriver-objs := mydriver.o helper.o：當 mydriver.ko 需要額外的 .o 檔案時，這樣設定可以讓 helper.c 也被編譯並鏈接到 mydriver.ko。
+
+3. 遞迴編譯 (Recursive Makefile for Subdirectories)
+如果你的模組有一個 src/ 目錄，裡面包含多個 .c 檔案，你可以使用 subdir-y 來遞迴編譯。
+
+目錄結構
+css
+複製
+編輯
+mydriver/
+├── Makefile
+├── src/
+│   ├── Makefile
+│   ├── core.c
+│   ├── helper.c
+│   └── device.c
+主 Makefile (mydriver/Makefile)
+makefile
+複製
+編輯
+obj-m += mydriver.o
+subdir-y += src  # 進入 src 目錄遞迴編譯
+
+KDIR := /lib/modules/$(shell uname -r)/build
+PWD  := $(shell pwd)
+
+all:
+	$(MAKE) -C $(KDIR) M=$(PWD) modules
+
+clean:
+	$(MAKE) -C $(KDIR) M=$(PWD) clean
+子 Makefile (mydriver/src/Makefile)
+makefile
+複製
+編輯
+obj-y := core.o helper.o device.o  # 這些物件檔會自動合併到 mydriver.ko
+說明
+subdir-y += src：讓 make 進入 src/ 目錄並執行該目錄內的 Makefile。
+
+obj-y := core.o helper.o device.o：這些 .o 會被編譯並自動合併到 mydriver.ko。
+
+4. 內建進內核 (Built-in Kernel Module)
+如果你不想讓驅動作為 .ko，而是直接編譯進內核，那麼應該使用 obj-y 而不是 obj-m。
+
+Makefile
+makefile
+複製
+編輯
+obj-y += mydriver.o
+內核配置
+你需要修改 Linux 內核原始碼的 Kconfig 和 Makefile：
+
+修改 drivers/misc/Kconfig
+
+makefile
+複製
+編輯
+config MYDRIVER
+    tristate "My Custom Driver"
+    help
+      This is a custom kernel driver.
+修改 drivers/misc/Makefile
+
+makefile
+複製
+編輯
+obj-$(CONFIG_MYDRIVER) += mydriver/
+這樣你的驅動就會內建到內核中。
+
+5. DKMS (Dynamic Kernel Module Support)
+如果你希望驅動可以自動適應不同版本的內核，通常會使用 DKMS 來管理模組。
+
+DKMS 設定 (dkms.conf)
+makefile
+複製
+編輯
+PACKAGE_NAME="mydriver"
+PACKAGE_VERSION="1.0"
+MAKE[0]="make -C src"
+BUILT_MODULE_NAME[0]="mydriver"
+DEST_MODULE_LOCATION[0]="/updates"
+AUTOINSTALL="yes"
+安裝
+sh
+複製
+編輯
+dkms add .
+dkms build mydriver/1.0
+dkms install mydriver/1.0
+這樣驅動模組會自動適應不同的內核版本，而無需手動重新編譯。
