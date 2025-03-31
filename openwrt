@@ -1,0 +1,195 @@
+1. 編譯內核模組（kmod）
+如果你要編譯一個內核模組，通常會使用 kmod 這個類型的套件，並且將模組檔案編譯成 .ko 格式。這種 Makefile 會包含指向內核源碼目錄的指示。
+
+範例：編譯內核模組（kmod-mydriver）
+makefile
+複製
+編輯
+# 引用 OpenWrt 的規則
+include $(TOPDIR)/rules.mk
+
+# 定義套件名稱與版本
+PKG_NAME:=mydriver
+PKG_VERSION:=1.0
+PKG_RELEASE:=1
+
+# 引入套件描述
+include $(INCLUDE_DIR)/package.mk
+
+# 定義內核模組
+define KernelPackage/mydriver
+  SUBMENU:=Custom Drivers
+  TITLE:=My Custom Kernel Driver
+  FILES:=$(PKG_BUILD_DIR)/mydriver.ko
+  AUTOLOAD:=$(call AutoLoad,50,mydriver)
+endef
+
+# 編譯過程
+define Build/Prepare
+  mkdir -p $(PKG_BUILD_DIR)
+  $(CP) ./src/* $(PKG_BUILD_DIR)/
+endef
+
+define Build/Compile
+  $(MAKE) -C $(LINUX_DIR) M=$(PKG_BUILD_DIR) modules
+endef
+
+# 安裝過程
+define Package/mydriver/install
+	$(INSTALL_DIR) $(1)/etc/modules.d/
+	echo "mydriver" > $(1)/etc/modules.d/mydriver
+endef
+
+$(eval $(call KernelPackage,mydriver))
+解釋：
+KernelPackage/mydriver：這個區塊定義了內核模組，指定了 .ko 檔案的位置和模組自動加載配置。
+
+Build/Prepare 和 Build/Compile：這部分負責準備源碼並編譯內核模組，這裡使用了 $(MAKE) -C $(LINUX_DIR) 指令來編譯內核模組。
+
+install：定義了安裝過程，將內核模組安裝到目標設備上。
+
+2. 編譯用戶空間程序（package）
+如果你要編譯一個用戶空間的程式，則需要在 Makefile 中定義該程式的編譯規則。這通常用於應用程式或腳本的編譯。
+
+範例：編譯用戶空間程序（myapp）
+makefile
+複製
+編輯
+include $(TOPDIR)/rules.mk
+
+PKG_NAME:=myapp
+PKG_VERSION:=1.0
+PKG_RELEASE:=1
+
+# 定義源碼位置
+PKG_SOURCE_DIR := $(CURDIR)/src
+
+# 定義套件描述
+include $(INCLUDE_DIR)/package.mk
+
+define Package/myapp
+  SECTION:=utils
+  CATEGORY:=Utilities
+  TITLE:=My Application
+  DEPENDS:=+libc
+endef
+
+define Package/myapp/description
+  This is a simple application.
+endef
+
+define Build/Compile
+  $(MAKE) -C $(PKG_SOURCE_DIR)
+endef
+
+define Package/myapp/install
+  $(INSTALL_DIR) $(1)/usr/bin
+  $(INSTALL_BIN) $(PKG_SOURCE_DIR)/myapp $(1)/usr/bin/
+endef
+
+$(eval $(call BuildPackage,myapp))
+解釋：
+Package/myapp：定義了這個套件的基本信息，包括名稱、依賴（+libc），以及所屬的目錄（utils）。
+
+Build/Compile：這裡的 $(MAKE) -C $(PKG_SOURCE_DIR) 指令負責編譯源碼，將其編譯成可執行檔案。
+
+install：定義了安裝過程，將編譯好的 myapp 安裝到目標系統的 /usr/bin 目錄中。
+
+3. 編譯靜態庫或動態庫（lib）
+如果你要編譯靜態庫或動態庫，OpenWrt 的 Makefile 會稍有不同。這類型的 Makefile 會使用 $(MAKE) 或自定義的庫編譯指令來生成 .a 或 .so 文件。
+
+範例：編譯靜態庫（libmydriver）
+makefile
+複製
+編輯
+include $(TOPDIR)/rules.mk
+
+PKG_NAME:=libmydriver
+PKG_VERSION:=1.0
+PKG_RELEASE:=1
+
+# 定義庫的源碼
+PKG_SOURCE_DIR := $(CURDIR)/src
+
+# 定義套件描述
+include $(INCLUDE_DIR)/package.mk
+
+define Package/libmydriver
+  SECTION:=libs
+  CATEGORY:=Libraries
+  TITLE:=My Driver Library
+  DEPENDS:=+libc
+endef
+
+define Package/libmydriver/description
+  This is a static library for My Driver.
+endef
+
+define Build/Compile
+  $(MAKE) -C $(PKG_SOURCE_DIR) libmydriver.a
+endef
+
+define Package/libmydriver/install
+  $(INSTALL_DIR) $(1)/usr/lib
+  $(INSTALL_LIB) $(PKG_SOURCE_DIR)/libmydriver.a $(1)/usr/lib/
+endef
+
+$(eval $(call BuildPackage,libmydriver))
+解釋：
+Package/libmydriver：這部分定義了庫的基本信息。
+
+Build/Compile：在這裡，庫會被編譯為靜態庫 libmydriver.a，並安裝到 /usr/lib 目錄中。
+
+install：定義了將庫安裝到目標系統的過程。
+
+4. 編譯內核驅動（內建進內核）
+如果你希望將一個驅動程式內建到內核中而不是作為模組，可以在 Makefile 中使用 obj-y 和 subdir-y 來處理。
+
+範例：編譯內建的驅動
+makefile
+複製
+編輯
+include $(TOPDIR)/rules.mk
+
+PKG_NAME:=mydriver
+PKG_VERSION:=1.0
+PKG_RELEASE:=1
+
+include $(INCLUDE_DIR)/package.mk
+
+define KernelPackage/mydriver
+  SUBMENU:=Custom Drivers
+  TITLE:=My Custom Kernel Driver
+  FILES:=$(PKG_BUILD_DIR)/mydriver.o
+endef
+
+define Build/Prepare
+  mkdir -p $(PKG_BUILD_DIR)
+  $(CP) ./src/* $(PKG_BUILD_DIR)/
+endef
+
+define Build/Compile
+  $(MAKE) -C $(LINUX_DIR) M=$(PKG_BUILD_DIR) modules
+endef
+
+define Package/mydriver/install
+	$(INSTALL_DIR) $(1)/etc/modules.d/
+	echo "mydriver" > $(1)/etc/modules.d/mydriver
+endef
+
+$(eval $(call KernelPackage,mydriver))
+解釋：
+KernelPackage/mydriver：這裡的 obj-y 將內核模組直接編譯進內核映像，而不是作為外部模組 (.ko)。
+
+subdir-y：使用 subdir-y 將源碼目錄遞迴進內核源碼，進行編譯。
+
+總結：OpenWrt Makefile 的幾種寫法
+編譯內核模組 (kmod)：使用 KernelPackage 和 obj-m。
+
+編譯用戶空間程序 (package)：使用 Build/Compile 和 install 來處理。
+
+編譯靜態庫或動態庫 (lib)：使用 Build/Compile 和 install 來處理庫文件。
+
+編譯內建的驅動：使用 KernelPackage 和 obj-y 來將驅動直接內建進內核映像中。
+
+這些 Makefile 撰寫方式根據需求選擇使用，基本上涵蓋了內核模組、用戶空間應用程式、庫等不同情境的編譯和安裝。
